@@ -1,39 +1,79 @@
-# Anydoc
+# anydoc
 
-TODO: Delete this and the text below, and describe your gem
+[![Gem Version](https://img.shields.io/gem/v/anydoc.svg)](https://rubygems.org/gems/anydoc)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/firecrawl/anydoc/blob/main/LICENSE)
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/anydoc`. To experiment with that code, run `bin/console` for an interactive prompt.
+Convert Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF files into clean GitHub-Flavored Markdown. Ruby bindings for the [anydoc](https://github.com/firecrawl/anydoc) Rust crate, built by [Firecrawl](https://firecrawl.dev). Also available as a hosted API through [Firecrawl Parse](https://firecrawl.dev/parse), which adds OCR for scanned pages anydoc cannot read on its own.
 
-## Installation
-
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
+Every format parses into one shared document model and renders through a single Markdown serializer, so headings, tables, lists, and footnotes come out consistently. Conversion runs without holding Ruby's global VM lock, and RBS signatures ship with the gem.
 
 ```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+gem install anydoc
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+Or add it with Bundler:
 
 ```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle add anydoc
 ```
+
+## Supported formats
+
+| Format           | Extensions                                                 |
+| ---------------- | ---------------------------------------------------------- |
+| Word             | `.doc`, `.docx`, `.docm`                                   |
+| PowerPoint       | `.ppt`, `.pps`, `.pot`, `.pptx`, `.pptm`, `.ppsx`, `.ppsm` |
+| Excel            | `.xls`, `.xlsx`, `.xlsm`, `.xlsb`                          |
+| OpenDocument     | `.odt`, `.ods`, `.odp`                                     |
+| Rich Text Format | `.rtf`                                                     |
+| EPUB             | `.epub`                                                    |
+| CSV              | `.csv`                                                     |
+| PDF              | `.pdf`                                                     |
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+require "anydoc"
+
+# From a file path. Pathname and other #to_path objects are accepted.
+markdown = Anydoc.to_markdown("report.docx")
+
+# From bytes, with the format detected from the content.
+markdown = Anydoc.to_markdown_bytes(data)
+
+# Signature-less formats such as CSV need an explicit format.
+markdown = Anydoc.to_markdown_bytes(data, :csv)
+
+# Or stop at the immutable document model, which carries embedded assets.
+document = Anydoc.to_document(data)
+document.blocks
+document.notes
+document.assets
+```
+
+## Format detection
+
+The format is read from the file content using the marker designated by its specification: the PDF header, RTF open group, OLE stream names, or ZIP package metadata. CSV has no signature, so detection returns `nil`; its extension or an explicit format names it instead.
+
+```ruby
+Anydoc.format_from_bytes(data)              # => :docx, or nil
+Anydoc.format_from_extension(".pptm")       # => :pptx
+Anydoc.format_from_path("report.odt")       # => :odt
+```
+
+## Images and embedded objects
+
+Markdown cannot embed bytes. Embedded images render as alt text while their binary strings remain in `document.assets`, tagged with a media type and the package part they came from. Images with external URLs render as ordinary Markdown images.
+
+PDF conversion emits Markdown directly and does not have a document-model form; use `Anydoc.to_markdown` or `Anydoc.to_markdown_bytes` for PDFs.
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/anydoc.
+```bash
+bin/setup
+bundle exec rake compile test
+```
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+[MIT](https://github.com/firecrawl/anydoc/blob/main/LICENSE)

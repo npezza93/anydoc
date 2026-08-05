@@ -1,0 +1,19 @@
+AllCops:
+  NewCops: enable
+  SuggestExtensions: false
+  TargetRubyVersion: 3.2
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/Documentation:
+  Enabled: false
+
+# The native extension must load between the model declarations and the
+# public Ruby wrappers, which intentionally reopens Anydoc in one file.
+Style/OneClassPerFile:
+  Enabled: false
+
+Metrics/AbcSize:
+  Exclude:
+    - "test/**/*"

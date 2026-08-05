@@ -73,3 +73,28 @@ jobs:
       # Must run from the repo root: with python/ as cwd, the source anydoc/
       # package dir shadows the installed compiled module.
       - run: python -m unittest discover -s python/tests
+
+  ruby:
+    name: Ruby bindings
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ruby -> target
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - run: bundle install
+        working-directory: ruby
+      - run: bundle exec rake compile test
+        working-directory: ruby
+      - run: cargo fmt --manifest-path ext/anydoc/Cargo.toml -- --check
+        working-directory: ruby
+      - run: bundle exec rubocop
+        working-directory: ruby
+      - run: gem build anydoc.gemspec
+        working-directory: ruby

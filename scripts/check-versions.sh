@@ -1,9 +1,11 @@
 #!/bin/sh
-# Verify that the release version agrees across the four places it is declared:
+# Verify that the release version agrees across every package:
 #   1. Cargo.toml             [package].version
 #   2. python/Cargo.toml      [package].version
 #   3. node/package.json      .version
 #   4. node/index.js          generated version guard (contains `!== '<version>'`)
+#   5. ruby/lib/anydoc/version.rb
+#   6. ruby/ext/anydoc/Cargo.toml package and core dependency versions
 #
 # Usage (from the repo root):
 #   sh scripts/check-versions.sh          # check agreement only
@@ -17,7 +19,8 @@ err=0
 
 report() { printf '%s\n' "$*" >&2; }
 
-for f in Cargo.toml python/Cargo.toml node/package.json node/index.js; do
+for f in Cargo.toml python/Cargo.toml node/package.json node/index.js \
+         ruby/lib/anydoc/version.rb ruby/ext/anydoc/Cargo.toml; do
   if [ ! -f "$f" ]; then
     report "error: $f not found - run this script from the repository root."
     exit 1
@@ -42,25 +45,37 @@ package_json_version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*
 # The generated Node loader embeds the version it was generated for in a guard
 # containing the literal substring `!== '<version>'`.
 guard_version=$(grep -o "!== '[^']*'" node/index.js | head -n 1 | sed "s/^!== '//; s/'\$//")
+ruby_version=$(sed -n 's/^[[:space:]]*VERSION[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' ruby/lib/anydoc/version.rb | head -n 1)
+ruby_crate_version=$(toml_version ruby/ext/anydoc/Cargo.toml)
+ruby_crate_release=${ruby_crate_version%-ruby.0}
+ruby_core_version=$(sed -n 's/^anydoc-core = .*version = "=\([^"]*\)".*/\1/p' ruby/ext/anydoc/Cargo.toml | head -n 1)
 
 [ -n "$cargo_version" ]        || { report "error: could not read [package].version from Cargo.toml"; err=1; }
 [ -n "$python_version" ]       || { report "error: could not read [package].version from python/Cargo.toml"; err=1; }
 [ -n "$package_json_version" ] || { report "error: could not read .version from node/package.json"; err=1; }
 [ -n "$guard_version" ]        || { report "error: could not find the version guard (!== '<version>') in node/index.js - regenerate it with 'npm run build' in node/"; err=1; }
+[ -n "$ruby_version" ]         || { report "error: could not read VERSION from ruby/lib/anydoc/version.rb"; err=1; }
+[ -n "$ruby_crate_version" ]   || { report "error: could not read [package].version from ruby/ext/anydoc/Cargo.toml"; err=1; }
+[ -n "$ruby_core_version" ]    || { report "error: could not read anydoc-core version from ruby/ext/anydoc/Cargo.toml"; err=1; }
 
 [ "$err" -eq 0 ] || exit 1
 
 if [ "$python_version" != "$cargo_version" ] || \
    [ "$package_json_version" != "$cargo_version" ] || \
-   [ "$guard_version" != "$cargo_version" ]; then
+   [ "$guard_version" != "$cargo_version" ] || \
+   [ "$ruby_version" != "$cargo_version" ] || \
+   [ "$ruby_crate_release" != "$cargo_version" ] || \
+   [ "$ruby_core_version" != "$cargo_version" ]; then
   report "error: the release version locations disagree:"
   report "  Cargo.toml [package].version        = $cargo_version"
   report "  python/Cargo.toml [package].version = $python_version"
   report "  node/package.json .version          = $package_json_version"
   report "  node/index.js version guard         = $guard_version"
-  report "fix: set all four to the same version. Bump both Cargo.toml files and"
-  report "     node/package.json, then run 'npm run build' in node/ to regenerate"
-  report "     node/index.js, and commit the result."
+  report "  ruby/lib/anydoc/version.rb VERSION  = $ruby_version"
+  report "  ruby extension crate release       = $ruby_crate_release"
+  report "  ruby anydoc-core dependency         = $ruby_core_version"
+  report "fix: set every package to the same version, then run 'npm run build' in"
+  report "     node/ to regenerate node/index.js and commit the result."
   exit 1
 fi
 

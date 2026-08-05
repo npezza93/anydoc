@@ -1,0 +1,11 @@
+/.bundle/
+/.ruby-lsp/
+/*.gem
+/Cargo.lock
+/Gemfile.lock
+/pkg/
+/tags
+/target/
+/tmp/
+/lib/anydoc/anydoc.bundle
+/lib/anydoc/anydoc.so

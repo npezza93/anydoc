@@ -6,8 +6,11 @@ require "minitest/test_task"
 Minitest::TestTask.create
 
 require "rubocop/rake_task"
+require "tmpdir"
 
-RuboCop::RakeTask.new
+RuboCop::RakeTask.new do |task|
+  task.options = ["--cache-root", File.join(File.realpath(Dir.tmpdir), "anydoc-rubocop-cache")]
+end
 
 require "rb_sys/extensiontask"
 

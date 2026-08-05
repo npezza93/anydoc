@@ -47,6 +47,62 @@ jobs:
       # outside a Node/Python host; the addon and wheel matrices cover them.
       - run: cargo test --locked
 
+  test-ruby:
+    name: Ruby gem
+    needs: gate
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ruby -> target
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - run: bundle install
+        working-directory: ruby
+      - run: bundle exec rake compile test
+        working-directory: ruby
+      - run: cargo fmt --manifest-path ext/anydoc/Cargo.toml -- --check
+        working-directory: ruby
+      - run: bundle exec rubocop
+        working-directory: ruby
+      - run: gem build anydoc.gemspec
+        working-directory: ruby
+
+  publish-rubygems:
+    name: Publish RubyGem
+    needs: [gate, test-ruby, publish-crates]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Build gem
+        run: gem build anydoc.gemspec
+        working-directory: ruby
+      - name: Skip if this version is already on RubyGems
+        id: probe
+        run: |
+          version='${{ needs.gate.outputs.version }}'
+          if curl -fsSL https://rubygems.org/api/v1/versions/anydoc.json |
+             jq -e --arg version "$version" 'any(.[]; .number == $version)' > /dev/null; then
+            echo "anydoc $version is already published; skipping."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish
+        if: github.event_name == 'push' && steps.probe.outputs.published == 'false'
+        run: gem push "anydoc-${{ needs.gate.outputs.version }}.gem"
+        working-directory: ruby
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+
   build-node:
     name: Build Node addon (${{ matrix.target }})
     needs: gate
